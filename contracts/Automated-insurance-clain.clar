@@ -72,20 +72,20 @@
   )
 )
 
-(define-public (fund-contract)
+(define-public (fund-contract (amount uint))
   (begin
     (asserts! (is-admin tx-sender) ERR_UNAUTHORIZED)
-    (var-set contract-balance (+ (var-get contract-balance) (stx-get-transfer-amount)))
+    (var-set contract-balance (+ (var-get contract-balance) amount))
     (ok true)
   )
 )
 
-(define-public (buy-policy)
+(define-public (buy-policy (amount uint))
   (begin
     (asserts! (not (policy-active? tx-sender)) ERR_ALREADY_INSURED)
-    (asserts! (is-eq (stx-get-transfer-amount) INSURANCE_PREMIUM) ERR_INVALID_AMOUNT)
+    (asserts! (is-eq amount INSURANCE_PREMIUM) ERR_INVALID_AMOUNT)
     (map-set policies tx-sender {start-block: block-height, active: true})
-    (var-set contract-balance (+ (var-get contract-balance) INSURANCE_PREMIUM))
+    (var-set contract-balance (+ (var-get contract-balance) amount))
     (ok true)
   )
 )
