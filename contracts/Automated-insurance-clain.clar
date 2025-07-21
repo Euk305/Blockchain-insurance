@@ -21,8 +21,14 @@
 (define-constant INSURANCE_PAYOUT u5000000) ;; 5 STX (microstacks)
 
 ;; data maps and vars
-(define-data-var admin principal tx-sender)
-(define-data-var contract-balance uint u0)
+(define-data-var admin principal tx-sender)                  ;; The contract admin (deployer by default)
+(define-data-var contract-balance uint u0)                   ;; Tracks total STX held by contract
+(define-data-var total-policies uint u0)                     ;; Total number of policies ever issued
+(define-data-var total-claims uint u0)                       ;; Total number of claims ever submitted
+(define-data-var total-approved-claims uint u0)              ;; Total number of claims approved
+(define-data-var total-rejected-claims uint u0)              ;; Total number of claims rejected
+(define-data-var last-policy-block uint u0)                  ;; Block height of last policy purchase
+(define-data-var last-claim-block uint u0)                   ;; Block height of last claim submission
 
 ;; policy: {owner: principal, start-block: uint, active: bool}
 (define-map policies principal
