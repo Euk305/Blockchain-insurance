@@ -151,3 +151,128 @@
 (define-public (get-claim (user principal))
   (ok (map-get? claims user))
 )
+
+;; ================= Additional Robust Features =================
+
+;; PRIVATE: Check if a claim is pending
+(define-private (claim-pending? (user principal))
+  (let ((claim (map-get? claims user)))
+    (if (is-some claim)
+      (let ((c (unwrap-panic claim)))
+        (is-eq (get status c) "pending")
+      )
+      false
+    )
+  )
+)
+
+;; PUBLIC: Get contract statistics
+(define-public (get-stats)
+  (ok {
+    admin: (var-get admin),
+    contract-balance: (var-get contract-balance),
+    total-policies: (var-get total-policies),
+    total-claims: (var-get total-claims),
+    total-approved-claims: (var-get total-approved-claims),
+    total-rejected-claims: (var-get total-rejected-claims),
+    last-policy-block: (var-get last-policy-block),
+    last-claim-block: (var-get last-claim-block)
+  })
+)
+
+;; PUBLIC: Admin can withdraw funds from contract
+(define-public (admin-withdraw (amount uint) (recipient principal))
+  (begin
+    (asserts! (is-admin tx-sender) ERR_UNAUTHORIZED)
+    (asserts! (<= amount (var-get contract-balance)) ERR_INSUFFICIENT_FUNDS)
+    (try! (stx-transfer? amount tx-sender recipient))
+    (var-set contract-balance (- (var-get contract-balance) amount))
+    (ok true)
+  )
+)
+
+;; PUBLIC: User can check if they are currently insured
+(define-public (am-i-insured)
+  (ok (policy-active? tx-sender))
+)
+
+;; PUBLIC: User can check if they have a pending claim
+(define-public (my-claim-pending)
+  (ok (claim-pending? tx-sender))
+)
+
+;; PUBLIC: Get all policy info for caller
+(define-public (my-policy)
+  (ok (map-get? policies tx-sender))
+)
+
+;; PUBLIC: Get all claim info for caller
+(define-public (my-claim)
+  (ok (map-get? claims tx-sender))
+)
+
+;; ================= Even More Robust Features =================
+
+;; DATA VAR: Contract paused state
+(define-data-var contract-paused bool false)
+
+;; PRIVATE: Only allow when not paused
+(define-private (not-paused)
+  (not (var-get contract-paused))
+)
+
+;; PUBLIC: Admin can pause contract
+(define-public (pause-contract)
+  (begin
+    (asserts! (is-admin tx-sender) ERR_UNAUTHORIZED)
+    (var-set contract-paused true)
+    (ok true)
+  )
+)
+
+;; PUBLIC: Admin can resume contract
+(define-public (resume-contract)
+  (begin
+    (asserts! (is-admin tx-sender) ERR_UNAUTHORIZED)
+    (var-set contract-paused false)
+    (ok true)
+  )
+)
+
+;; PUBLIC: Renew policy (if expired)
+(define-public (renew-policy (amount uint))
+  (begin
+    (asserts! (not-paused) (err u120))
+    (let ((policy (map-get? policies tx-sender)))
+      (asserts! (is-some policy) ERR_POLICY_NOT_FOUND)
+      (let ((p (unwrap-panic policy)))
+        (let ((start (get start-block p))
+              (active (get active p))
+              (now block-height))
+          (asserts! (not (and active (<= start now) (< now (+ start POLICY_DURATION_BLOCKS)))) ERR_POLICY_ACTIVE)
+          (asserts! (is-eq amount INSURANCE_PREMIUM) ERR_INVALID_AMOUNT)
+          (map-set policies tx-sender {start-block: block-height, active: true})
+          (var-set contract-balance (+ (var-get contract-balance) amount))
+          (var-set total-policies (+ (var-get total-policies) u1))
+          (var-set last-policy-block block-height)
+          (ok true)
+        )
+      )
+    )
+  )
+)
+
+;; PUBLIC: Get claim history for a user (status and block)
+(define-public (get-claim-history (user principal))
+  (ok (map-get? claims user))
+)
+
+;; PUBLIC: Get contract paused state
+(define-public (is-paused)
+  (ok (var-get contract-paused))
+)
+
+;; PUBLIC: Emit event for claim submission (for off-chain indexers)
+(define-public (emit-claim-event (user principal) (block uint) (status (string-ascii 10)))
+  (ok {user: user, block: block, status: status})
+)
