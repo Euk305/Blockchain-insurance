@@ -218,7 +218,7 @@
 
 ;; PRIVATE: Only allow when not paused
 (define-private (not-paused)
-  (asserts! (not (var-get contract-paused)) (err u120))
+  (not (var-get contract-paused))
 )
 
 ;; PUBLIC: Admin can pause contract
@@ -242,7 +242,7 @@
 ;; PUBLIC: Renew policy (if expired)
 (define-public (renew-policy (amount uint))
   (begin
-    (not-paused)
+    (asserts! (not-paused) (err u120))
     (let ((policy (map-get? policies tx-sender)))
       (asserts! (is-some policy) ERR_POLICY_NOT_FOUND)
       (let ((p (unwrap-panic policy)))
