@@ -56,7 +56,7 @@
   (let ((policy (map-get? policies owner)))
     (if (is-some policy)
       (let (
-        (p (unwrap! policy ERR_POLICY_NOT_FOUND))
+        (p (unwrap-panic policy))
         (start (get start-block p))
         (active (get active p))
         (now block-height)
@@ -129,7 +129,7 @@
         (if approve
           (begin
             (asserts! (>= (var-get contract-balance) INSURANCE_PAYOUT) ERR_INSUFFICIENT_FUNDS)
-            (stx-transfer? INSURANCE_PAYOUT (var-get admin) user)
+            (try! (stx-transfer? INSURANCE_PAYOUT (var-get admin) user))
             (var-set contract-balance (- (var-get contract-balance) INSURANCE_PAYOUT))
             (map-set claims user {block: (get block c), status: "approved"})
             (ok "approved")
