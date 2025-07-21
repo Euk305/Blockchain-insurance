@@ -210,3 +210,69 @@
 (define-public (my-claim)
   (ok (map-get? claims tx-sender))
 )
+
+;; ================= Even More Robust Features =================
+
+;; DATA VAR: Contract paused state
+(define-data-var contract-paused bool false)
+
+;; PRIVATE: Only allow when not paused
+(define-private (not-paused)
+  (asserts! (not (var-get contract-paused)) (err u120))
+)
+
+;; PUBLIC: Admin can pause contract
+(define-public (pause-contract)
+  (begin
+    (asserts! (is-admin tx-sender) ERR_UNAUTHORIZED)
+    (var-set contract-paused true)
+    (ok true)
+  )
+)
+
+;; PUBLIC: Admin can resume contract
+(define-public (resume-contract)
+  (begin
+    (asserts! (is-admin tx-sender) ERR_UNAUTHORIZED)
+    (var-set contract-paused false)
+    (ok true)
+  )
+)
+
+;; PUBLIC: Renew policy (if expired)
+(define-public (renew-policy (amount uint))
+  (begin
+    (not-paused)
+    (let ((policy (map-get? policies tx-sender)))
+      (asserts! (is-some policy) ERR_POLICY_NOT_FOUND)
+      (let ((p (unwrap-panic policy)))
+        (let ((start (get start-block p))
+              (active (get active p))
+              (now block-height))
+          (asserts! (not (and active (<= start now) (< now (+ start POLICY_DURATION_BLOCKS)))) ERR_POLICY_ACTIVE)
+          (asserts! (is-eq amount INSURANCE_PREMIUM) ERR_INVALID_AMOUNT)
+          (map-set policies tx-sender {start-block: block-height, active: true})
+          (var-set contract-balance (+ (var-get contract-balance) amount))
+          (var-set total-policies (+ (var-get total-policies) u1))
+          (var-set last-policy-block block-height)
+          (ok true)
+        )
+      )
+    )
+  )
+)
+
+;; PUBLIC: Get claim history for a user (status and block)
+(define-public (get-claim-history (user principal))
+  (ok (map-get? claims user))
+)
+
+;; PUBLIC: Get contract paused state
+(define-public (is-paused)
+  (ok (var-get contract-paused))
+)
+
+;; PUBLIC: Emit event for claim submission (for off-chain indexers)
+(define-public (emit-claim-event (user principal) (block uint) (status (string-ascii 10)))
+  (ok {user: user, block: block, status: status})
+)
